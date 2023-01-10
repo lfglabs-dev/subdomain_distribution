@@ -40,7 +40,7 @@ async def main():
         chain=chainid,
         supported_tx_version=1,
     )
-    impl_file = open("./build/main.json", "r")
+    impl_file = open("./build/simple.json", "r")
     declare_contract_tx = await account.sign_declare_transaction(
         compiled_contract=impl_file.read(), max_fee=max_fee
     )
