@@ -1,5 +1,5 @@
 %lang starknet
-from starkware.cairo.common.math import assert_nn
+from starkware.cairo.common.math import assert_nn, assert_le
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from cairo_contracts.src.openzeppelin.upgrades.library import Proxy
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
@@ -43,6 +43,20 @@ func upgrade{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 }
 
 // External functions
+@external
+func approve_identities{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
+) {
+    alloc_locals;
+
+    // Get contracts addresses
+    let (current_contract) = get_contract_address();
+    let (starknetid_contract_addr) = _starknetid_contract.read();
+
+    StarknetId.setApprovalForAll(starknetid_contract_addr, current_contract, 1);
+
+    return ();
+}
+
 @external
 func deposit_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     domain_len: felt, domain: felt*
@@ -89,6 +103,12 @@ func mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa
 ) {
     alloc_locals;
 
+    with_attr error_message("You can't transfer the root domain.") {
+        if (domain_len == 1) {
+            assert 0 = 1;
+        }
+    }
+
     // Get contract addresse
     let (naming_contract_addr) = _naming_contract.read();
 
@@ -97,5 +117,3 @@ func mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa
 
     return ();
 }
-
-

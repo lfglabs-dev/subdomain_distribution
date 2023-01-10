@@ -60,6 +60,20 @@ func upgrade{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 
 // External functions
 @external
+func approve_identities{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
+) {
+    alloc_locals;
+
+    // Get contracts addresses
+    let (current_contract) = get_contract_address();
+    let (starknetid_contract_addr) = _starknetid_contract.read();
+
+    StarknetId.setApprovalForAll(starknetid_contract_addr, current_contract, 1);
+
+    return ();
+}
+
+@external
 func deposit_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     domain_len: felt, domain: felt*
 ) {
@@ -113,6 +127,11 @@ func mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa
 ) {
     alloc_locals;
 
+    // Check if the domain to send is a subdomain of the root domain
+    with_attr error_message("You have to transfer a subdomain of the root domain") {
+        assert domain_len = root_domain_len + 1;
+    }
+
     // Get the token id of the domain
     let (naming_contract_addr) = _naming_contract.read();
     let (domain_token_id) = Naming.domain_to_token_id(naming_contract_addr, root_domain_len, root_domain);
@@ -130,9 +149,6 @@ func mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa
     verify_ecdsa_signature(params_hash, whitelisting_key, sig[0], sig[1]);
 
     // Transfer the subdomain from the root domain owner (the contract) to the new identity
-    with_attr error_message("You have to transfer a subdomain of the root domain") {
-        assert root_domain_len = domain_len + 1;
-    }
     Naming.transfer_domain(naming_contract_addr, domain_len, domain, receiver_token_id);
     
     // blacklist the address for this tokenId
