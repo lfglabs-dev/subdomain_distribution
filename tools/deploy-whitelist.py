@@ -13,10 +13,11 @@ argv = sys.argv
 deployer_account_addr = (
     0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
 )
-deployer_account_private_key = int(argv[1])
+deployer_account_private_key = int(argv[1]) 
 naming_contract = 0x003bab268e932d2cecd1946f100ae67ce3dff9fd234119ea2f6da57d16d29fce
 starknetid_contract = 0x0783a9097b26eae0586373b2ce0ed3529ddc44069d1e0fbc4f66d42b69d6850d
 admin = 0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
+whitelist_key = 123 ## Your public whitelist key key
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
@@ -40,7 +41,7 @@ async def main():
         chain=chainid,
         supported_tx_version=1,
     )
-    impl_file = open("./build/simple.json", "r")
+    impl_file = open("./build/whitelist.json", "r")
     declare_contract_tx = await account.sign_declare_transaction(
         compiled_contract=impl_file.read(), max_fee=max_fee
     )
@@ -68,7 +69,7 @@ async def main():
         calldata={
             "implementation_hash": impl_contract_class_hash,
             "selector": get_selector_from_name("initializer"),
-            "calldata": [admin, starknetid_contract, naming_contract],
+            "calldata": [admin, starknetid_contract, naming_contract, whitelist_key],
         },
     )
 
