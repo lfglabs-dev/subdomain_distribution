@@ -142,8 +142,11 @@ func register{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, e
     }
 
     // Transfer the subdomain from the root domain owner (the contract) to the new identity
-    let (naming_contract) = _naming_contract.read();
-    Naming.transfer_domain(naming_contract, domain_len, domain, receiver_token_id);
+    with_attr error_message("This name is taken") {
+        let (naming_contract) = _naming_contract.read();
+        Naming.transfer_domain(naming_contract, domain_len, domain, receiver_token_id);
+    }
+
     
     // blacklist the address for this tokenId
     _blacklisted_addresses.write(caller, TRUE);

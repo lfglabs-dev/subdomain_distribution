@@ -17,7 +17,7 @@ deployer_account_private_key = int(argv[1])
 naming_contract = 0x003bab268e932d2cecd1946f100ae67ce3dff9fd234119ea2f6da57d16d29fce
 starknetid_contract = 0x0783a9097b26eae0586373b2ce0ed3529ddc44069d1e0fbc4f66d42b69d6850d
 admin = 0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
-whitelist_key = 123 ## Your public whitelist key key
+whitelist_key = 799085134889162279411547463466380106946633091380230638211634583888488020853 ## Your public whitelist key
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
