@@ -4,10 +4,11 @@ from cairo_contracts.src.openzeppelin.upgrades.library import Proxy
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
 from src.interface.naming import Naming
 from src.interface.starknetid import StarknetId
-from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.math import assert_le_felt, split_felt
+from starkware.cairo.common.uint256 import Uint256, uint256_unsigned_div_rem
 
 // Storage 
 @storage_var
@@ -123,7 +124,17 @@ func register{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, e
         assert is_registration_open = 1;
     } 
 
-    // Check if the domain to send is a subdomain of the root domain
+
+    // Check if name is more than 4 letters
+    let (high, low) = split_felt(domain[0]);
+    let uint256_domain = Uint256(low, high);
+    let number_of_character = _get_amount_of_chars(uint256_domain);
+    with_attr error_message("You can not register a og name with less than 4 characters.") {
+        assert_le_felt(4, number_of_character);
+    }
+
+
+    // Check if the domain contains more than 3 characters
     with_attr error_message("You have to transfer a subdomain of the root domain, not the root domain itself.") {
         assert domain_len = 2;
     }
@@ -208,6 +219,25 @@ func _get_contracts_addresses{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
     let (naming_contract) = _naming_contract.read();
 
     return (current_contract, starknetid_contract, naming_contract);
+}
+
+func _get_amount_of_chars{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    domain: Uint256
+) -> felt {
+    alloc_locals;
+    if (domain.low == 0 and domain.high == 0) {
+        return (0);
+    }
+    // 38 = simple_alphabet_size
+    let (local p, q) = uint256_unsigned_div_rem(domain, Uint256(38, 0));
+    if (q.high == 0 and q.low == 37) {
+        // 3 = complex_alphabet_size
+        let (shifted_p, _) = uint256_unsigned_div_rem(p, Uint256(2, 0));
+        let next = _get_amount_of_chars(shifted_p);
+        return 1 + next;
+    }
+    let next = _get_amount_of_chars(p);
+    return 1 + next;
 }
 
 

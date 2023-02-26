@@ -1,28 +1,31 @@
 %lang starknet
-from src.whitelist import balance, increase_balance
 from starkware.cairo.common.cairo_builtins import HashBuiltin
+from src.whitelist import _get_amount_of_chars
+from starkware.cairo.common.uint256 import Uint256
+from starkware.cairo.common.math import split_felt
 
 @external
-func test_increase_balance{syscall_ptr: felt*, range_check_ptr, pedersen_ptr: HashBuiltin*}() {
-    let (result_before) = balance.read();
-    assert result_before = 0;
+func test_get_amount_of_chars{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
+    // Should return 0 (empty string)
+    let chars_amount = _get_amount_of_chars(Uint256(0, 0));
+    assert chars_amount = 0;
 
-    increase_balance(42);
+    // Should return 4 ("toto")
+    let chars_amount = _get_amount_of_chars(Uint256(796195, 0));
+    assert chars_amount = 4;
 
-    let (result_after) = balance.read();
-    assert result_after = 42;
-    return ();
-}
+    // Should return 5 ("aloha")
+    let chars_amount = _get_amount_of_chars(Uint256(77554770, 0));
+    assert chars_amount = 5;
 
-@external
-func test_cannot_increase_balance_with_negative_value{
-    syscall_ptr: felt*, range_check_ptr, pedersen_ptr: HashBuiltin*
-}() {
-    let (result_before) = balance.read();
-    assert result_before = 0;
+    // Should return 9 ("chocolate")
+    let chars_amount = _get_amount_of_chars(Uint256(19565965532212, 0));
+    assert chars_amount = 9;
 
-    %{ expect_revert("TRANSACTION_FAILED", "Amount must be positive") %}
-    increase_balance(-42);
+    // Should return 30 ("这来abcdefghijklmopqrstuvwyq1234")
+    let (high, low) = split_felt(801855144733576077820330221438165587969903898313);
+    let chars_amount = _get_amount_of_chars(Uint256(low, high));
+    assert chars_amount = 30;
 
     return ();
 }
