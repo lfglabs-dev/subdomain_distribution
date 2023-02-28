@@ -67,29 +67,6 @@ func upgrade{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 
 // External functions
 @external
-func deposit_domain{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    domain_len: felt, domain: felt*
-) {
-    alloc_locals;
-
-    // Check that the caller is the admin
-    with_attr error_message("You are not the admin") {
-        _check_admin();
-    }
-
-    // Get contracts addresses
-    let (caller) = get_caller_address();
-    let (current_contract, starknetid_contract, naming_contract) = _get_contracts_addresses();
-
-    // Transfer the starknet identity of the domain on this contract
-    let (domain_token_id) = Naming.domain_to_token_id(naming_contract, domain_len, domain);
-    let token_id_uint = Uint256(domain_token_id, 0);
-    StarknetId.transferFrom(starknetid_contract, caller, current_contract, token_id_uint);
-    
-    return ();
-}
-
-@external
 func claim_domain_back{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     domain_len: felt, domain: felt*
 ) {

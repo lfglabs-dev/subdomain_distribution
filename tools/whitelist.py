@@ -11,15 +11,10 @@ if len(argv) < 3:
     sys.exit()
 priv_key = argv[1]
 address = argv[2]
-token_id = argv[3]
 
 
 
 # compute signature
-hashed = pedersen_hash(
-    int(token_id),
-    int (address, 16),
-)
-signed = sign(hashed, int(priv_key)) 
+signed = sign(int(address), int(priv_key)) 
 print(signed)
     
