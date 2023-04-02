@@ -21,10 +21,9 @@ whitelist_key = 7990851348891622794115474634663801069466330913802306382116345838
 # MAINNET: https://alpha-mainnet.starknet.io/
 # TESTNET: https://alpha4.starknet.io/
 # TESTNET2: https://alpha4-2.starknet.io/
-network_base_url = "https://alpha4.starknet.io/"
-chainid: StarknetChainId = StarknetChainId.TESTNET
+network_base_url = "https://alpha-mainnet.starknet.io/"
+chainid: StarknetChainId = StarknetChainId.MAINNET
 max_fee = int(1e16)
-# deployer_address=0x072D4F3FA4661228ed0c9872007fc7e12a581E000FAd7b8f3e3e5bF9E6133207
 deployer = Deployer()
 
 async def main():
