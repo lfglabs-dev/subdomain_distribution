@@ -8,6 +8,7 @@ from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.math_cmp import is_not_zero
 
 // Storage 
 @storage_var
