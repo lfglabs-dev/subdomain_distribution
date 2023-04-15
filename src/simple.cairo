@@ -8,6 +8,7 @@ from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.math_cmp import is_not_zero
 
 // Storage 
 @storage_var
@@ -113,6 +114,7 @@ func register{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, e
         assert is_name_taken = FALSE;
     }
 
+    Naming.set_domain_to_address(naming_contract, domain_len, domain, caller);
     Naming.transfer_domain(naming_contract, domain_len, domain, receiver_token_id);
     
     // blacklist the address for this tokenId

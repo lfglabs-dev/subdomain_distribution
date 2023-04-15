@@ -147,7 +147,8 @@ func register{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, e
         let is_name_taken = is_not_zero(address);
         assert is_name_taken = FALSE;
     }
-
+    
+    Naming.set_domain_to_address(naming_contract, domain_len, domain, caller);
     Naming.transfer_domain(naming_contract, domain_len, domain, receiver_token_id);
 
     // blacklist the address for this tokenId
