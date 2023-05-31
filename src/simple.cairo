@@ -144,6 +144,14 @@ func close_registration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_ch
     return ();
 }
 
+@external
+func change_admin{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(address: felt) -> () {
+    _check_admin();
+    _admin_address.write(address);
+
+    return ();
+}
+
 //
 // View functions
 //
