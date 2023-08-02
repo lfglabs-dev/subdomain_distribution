@@ -6,10 +6,9 @@ use traits::Into;
 use starknet::ContractAddress;
 use starknet::testing;
 
-use subdomain_distribution::simple::SimpleSubdomainDistribution;
-use subdomain_distribution::interface::simple::{
-    ISimpleSubdomainDistribution, ISimpleSubdomainDistributionDispatcher,
-    ISimpleSubdomainDistributionDispatcherTrait
+use subdomain_distribution::whitelist::Whitelist;
+use subdomain_distribution::interface::whitelist::{
+    IWhitelist, IWhitelistDispatcher, IWhitelistDispatcherTrait
 };
 
 use super::mocks::starknetid::{
@@ -18,7 +17,7 @@ use super::mocks::starknetid::{
 use super::mocks::naming::{Naming, MockNamingABIDispatcher, MockNamingABIDispatcherTrait};
 use super::constants::{
     ENCODED_ROOT, NAME, OWNER, USER, ZERO, OTHER, WL_CLASS_HASH, OTHER_WL_CLASS_HASH,
-    NEW_CLASS_HASH, CLASS_HASH_ZERO
+    NEW_CLASS_HASH, CLASS_HASH_ZERO, WHITELIST_PUB_KEY, SIG_USER, SIG_OTHER, WRONG_SIG
 };
 use super::utils;
 
@@ -29,13 +28,14 @@ use super::utils;
 #[cfg(test)]
 fn setup(
     admin: ContractAddress, starknetid_contract: ContractAddress, naming_contract: ContractAddress
-) -> ISimpleSubdomainDistributionDispatcher {
+) -> IWhitelistDispatcher {
     let mut calldata = ArrayTrait::<felt252>::new();
     calldata.append(admin.into());
     calldata.append(starknetid_contract.into());
     calldata.append(naming_contract.into());
-    let address = utils::deploy(SimpleSubdomainDistribution::TEST_CLASS_HASH, calldata);
-    ISimpleSubdomainDistributionDispatcher { contract_address: address }
+    calldata.append(WHITELIST_PUB_KEY());
+    let address = utils::deploy(Whitelist::TEST_CLASS_HASH, calldata);
+    IWhitelistDispatcher { contract_address: address }
 }
 
 #[cfg(test)]
@@ -92,7 +92,7 @@ fn test_register() {
     let owner = naming.domain_to_token_id(build_subdomain(NAME(), ENCODED_ROOT()).span());
     assert(owner.is_zero(), 'owner should be zero');
 
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
 
     let owner = naming.domain_to_token_id(build_subdomain(NAME(), ENCODED_ROOT()).span());
     assert(owner == user_token_id, 'Owner should be user');
@@ -121,7 +121,7 @@ fn test_claim_domain_back() {
     testing::set_contract_address(USER());
     let user_token_id = 2;
     starknetid.mint(user_token_id);
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
     let owner = starknetid.owner_of(user_token_id);
     assert(owner == USER(), 'Owner should be admin');
 
@@ -157,7 +157,7 @@ fn test_claim_domain_back_fail_not_admin() {
     testing::set_contract_address(USER());
     let user_token_id = 2;
     starknetid.mint(user_token_id);
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
     let owner = starknetid.owner_of(user_token_id);
     assert(owner == USER(), 'Owner should be admin');
 
@@ -189,7 +189,7 @@ fn test_register_fail_closed() {
     let user_token_id = 2;
     starknetid.mint(user_token_id);
 
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
 }
 
 #[cfg(test)]
@@ -219,7 +219,7 @@ fn test_register_fail_root() {
 
     let mut domain = ArrayTrait::<felt252>::new();
     domain.append(ENCODED_ROOT());
-    contract.register(domain, user_token_id);
+    contract.register(domain, user_token_id, SIG_USER());
 }
 
 #[cfg(test)]
@@ -246,10 +246,10 @@ fn test_claim_twice_fail() {
     testing::set_contract_address(USER());
     let user_token_id = 2;
     starknetid.mint(user_token_id);
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
 
     // Should revert claiming twice a subdomain
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(77554770, ENCODED_ROOT()), user_token_id, SIG_USER());
 }
 
 #[cfg(test)]
@@ -276,14 +276,70 @@ fn test_claim_same_subdomain_fail() {
     testing::set_contract_address(USER());
     let user_token_id = 2;
     starknetid.mint(user_token_id);
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, SIG_USER());
 
     // Should revert claiming the same subdomain as USER
     testing::set_caller_address(OTHER());
     testing::set_contract_address(OTHER());
     let other_token_id = 3;
     starknetid.mint(other_token_id);
-    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), other_token_id);
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), other_token_id, SIG_OTHER());
+}
+
+#[cfg(test)]
+#[test]
+#[available_gas(20000000000)]
+#[should_panic(expected: ('Not whitelisted', 'ENTRYPOINT_FAILED', ))]
+fn test_register_fail_wrong_sig() {
+    let starknetid = deploy_starknetid();
+    let naming = deploy_naming(starknetid.contract_address, ZERO(), ZERO());
+    let contract = setup(OWNER(), starknetid.contract_address, naming.contract_address);
+
+    // mint a starknetid & buy a domain
+    testing::set_caller_address(OWNER());
+    testing::set_contract_address(OWNER());
+    let token_id = 1;
+    starknetid.mint(token_id);
+    naming.buy(token_id, ENCODED_ROOT(), 365, 0, OWNER());
+
+    // open registration
+    contract.open_registration();
+
+    // Should revert claiming subdomain because signature is invalid
+    testing::set_caller_address(USER());
+    testing::set_contract_address(USER());
+    let user_token_id = 2;
+    starknetid.mint(user_token_id);
+
+    contract.register(build_subdomain(NAME(), ENCODED_ROOT()), user_token_id, WRONG_SIG());
+}
+
+#[cfg(test)]
+#[test]
+#[available_gas(20000000000)]
+#[should_panic(expected: ('Name is less than 4 characters', 'ENTRYPOINT_FAILED', ))]
+fn test_register_fail_domain_too_short() {
+    let starknetid = deploy_starknetid();
+    let naming = deploy_naming(starknetid.contract_address, ZERO(), ZERO());
+    let contract = setup(OWNER(), starknetid.contract_address, naming.contract_address);
+
+    // mint a starknetid & buy a domain
+    testing::set_caller_address(OWNER());
+    testing::set_contract_address(OWNER());
+    let token_id = 1;
+    starknetid.mint(token_id);
+    naming.buy(token_id, ENCODED_ROOT(), 365, 0, OWNER());
+
+    // open registration
+    contract.open_registration();
+
+    // Should revert claiming subdomain because subdomain "ben" is less than 4 characters
+    testing::set_caller_address(USER());
+    testing::set_contract_address(USER());
+    let user_token_id = 2;
+    starknetid.mint(user_token_id);
+
+    contract.register(build_subdomain(18925, ENCODED_ROOT()), user_token_id, SIG_USER());
 }
 
 #[cfg(test)]
@@ -314,7 +370,6 @@ fn test_change_implementation_class_hash_not_admin() {
     testing::set_contract_address(USER());
     contract.upgrade(NEW_CLASS_HASH());
 }
-
 
 #[cfg(test)]
 #[test]
