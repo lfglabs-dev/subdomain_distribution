@@ -217,3 +217,7 @@ cython_debug/
 [Ss]cripts
 pyvenv.cfg
 pip-selfcheck.json
+
+/build
+/.protostar_cache
+/target
