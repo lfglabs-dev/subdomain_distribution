@@ -117,7 +117,7 @@ mod Whitelist {
                 contract_address: naming_contract
             }.transfer_domain(domain.span(), receiver_token_id);
 
-            // blacklist the address for this tokenId
+            // blacklist the address for this address
             self._blacklisted_addresses.write(caller, true);
         }
 
