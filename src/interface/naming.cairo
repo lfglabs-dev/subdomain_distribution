@@ -1,68 +1,12 @@
-%lang starknet
-from starkware.cairo.common.uint256 import Uint256
+#[starknet::interface]
+trait INaming<TContractState> {
+    fn domain_to_address(self: @TContractState, domain: Span<felt252>) -> starknet::ContractAddress;
 
-@contract_interface
-namespace Naming {
-    // View functions
+    fn domain_to_token_id(self: @TContractState, domain: Span<felt252>) -> felt252;
 
-    func domain_to_address(domain_len: felt, domain: felt*) -> (address: felt) {
-    }
+    fn set_domain_to_address(
+        ref self: TContractState, domain: Span<felt252>, address: starknet::ContractAddress
+    );
 
-    func domain_to_expiry(domain_len: felt, domain: felt*) -> (address: felt) {
-    }
-
-    func address_to_domain(address: felt) -> (domain_len: felt, domain: felt*) {
-    }
-
-    func domain_to_token_id(domain_len: felt, domain: felt*) -> (owner: felt) {
-    }
-
-    // Setters
-
-    func set_domain_to_address(domain_len: felt, domain: felt*, address: felt) {
-    }
-
-    func set_address_to_domain(domain_len: felt, domain: felt*) {
-    }
-
-    func book_domain(domain_hash: felt) {
-    }
-
-    func buy(token_id: felt, domain: felt, days: felt, resolver: felt, address: felt) {
-    }
-
-    func renew(domain: felt, days: felt) {
-    }
-
-    func transfer_domain(domain_len: felt, domain: felt*, target_token_id: felt) {
-    }
-
-    func reset_subdomains(domain_len: felt, domain: felt*) {
-    }
-
-    // Admin setters
-
-    func set_admin(address: felt) {
-    }
-
-    func set_domain_owner(domain_len: felt, domain: felt*, token_id: felt) {
-    }
-
-    func set_pricing_contract(address: felt) {
-    }
-
-    func transfer_balance(erc20: felt, amount: Uint256) {
-    }
-
-    func whitelisted_mint(domain, expiry, starknet_id, receiver_address, sig: (felt, felt)) {
-    }
-
-    func end_whitelist() {
-    }
-
-    func set_l1_contract(l1_contract) {
-    }
-
-    func upgrade(new_implementation: felt) {
-    }
+    fn transfer_domain(ref self: TContractState, domain: Span<felt252>, target_token_id: felt252, );
 }
