@@ -1,6 +1,9 @@
 # %% Imports
 import logging
 from asyncio import run
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.constants import COMPILED_CONTRACTS_WHITELIST, STARKNETID_ADDRESS, NAMING_ADDRESS
 from utils.starknet import (
