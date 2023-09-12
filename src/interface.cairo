@@ -1,4 +1,3 @@
-mod naming;
 mod simple;
-mod starknetid;
+mod identity;
 mod whitelist;

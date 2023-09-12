@@ -1,6 +1,5 @@
 mod simple;
 mod whitelist;
 mod interface;
-mod upgrades;
-
+#[cfg(test)]
 mod tests;

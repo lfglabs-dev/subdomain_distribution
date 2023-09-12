@@ -1,8 +1,7 @@
 use array::ArrayTrait;
 use core::result::ResultTrait;
 use option::OptionTrait;
-use starknet::class_hash::Felt252TryIntoClassHash;
-use starknet::ContractAddress;
+use starknet::{class_hash::Felt252TryIntoClassHash, ContractAddress, SyscallResultTrait};
 use traits::TryInto;
 
 fn deploy(contract_class_hash: felt252, calldata: Array<felt252>) -> ContractAddress {

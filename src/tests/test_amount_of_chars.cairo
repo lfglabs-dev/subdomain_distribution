@@ -4,7 +4,6 @@ use subdomain_distribution::interface::whitelist::{
     IWhitelist, IWhitelistDispatcher, IWhitelistDispatcherTrait,
 };
 
-#[cfg(test)]
 #[test]
 #[available_gas(20000000000)]
 fn test_get_amount_of_chars() {

@@ -2,17 +2,14 @@
 mod SimpleSubdomainDistribution {
     use starknet::ContractAddress;
     use starknet::{get_caller_address, get_contract_address};
-    use array::{ArrayTrait};
+    use array::SpanTrait;
     use zeroable::Zeroable;
     use starknet::class_hash::ClassHash;
 
     use subdomain_distribution::interface::simple::ISimpleSubdomainDistribution;
-    use subdomain_distribution::upgrades::upgradeable::Upgradeable;
-    use subdomain_distribution::interface::naming::{
-        INaming, INamingDispatcher, INamingDispatcherTrait
-    };
-    use subdomain_distribution::interface::starknetid::{
-        IStarknetId, IStarknetIdDispatcher, IStarknetIdDispatcherTrait
+    use naming::interface::naming::{INaming, INamingDispatcher, INamingDispatcherTrait};
+    use subdomain_distribution::interface::identity::{
+        IIdentity, IIdentityDispatcher, IIdentityDispatcherTrait
     };
 
     #[storage]
@@ -36,7 +33,7 @@ mod SimpleSubdomainDistribution {
 
     #[external(v0)]
     impl SimpleImpl of ISimpleSubdomainDistribution<ContractState> {
-        fn claim_domain_back(ref self: ContractState, domain: Array<felt252>, ) {
+        fn claim_domain_back(ref self: ContractState, domain: Span<felt252>,) {
             // Check that the caller is the admin
             self._check_admin();
 
@@ -46,22 +43,19 @@ mod SimpleSubdomainDistribution {
                 ._get_contracts_addresses();
 
             // Transfer back the starknet identity of the domain to the caller address
-            let token_id = INamingDispatcher {
-                contract_address: naming_contract
-            }.domain_to_token_id(domain.span());
-            let token_id_uint = u256 { low: integer::u128_from_felt252(token_id), high: 0 };
+            let token_id = INamingDispatcher { contract_address: naming_contract }
+                .domain_to_id(domain);
 
-            IStarknetIdDispatcher {
-                contract_address: starknetid_contract
-            }.transferFrom(current_contract, caller, token_id_uint);
+            IIdentityDispatcher { contract_address: starknetid_contract }
+                .transferFrom(current_contract, caller, token_id);
         }
 
-        fn register(ref self: ContractState, domain: Array<felt252>, receiver_token_id: felt252) {
+        fn register(ref self: ContractState, domain: Span<felt252>, receiver_token_id: u128) {
             // Check if the registration is open
             assert(self._is_registration_open.read(), 'Registration is closed');
 
             // Check if the domain to send is a subdomain of the root domain
-            assert(self._calculate_length(@domain) == 2, 'Cannot transfer root domain');
+            assert(domain.len() == 2, 'Cannot transfer root domain');
 
             // Verifiy that the caller address has not minted yet
             let caller = get_caller_address();
@@ -69,17 +63,12 @@ mod SimpleSubdomainDistribution {
 
             // Check if the name already has an address, as this contract will be the owner of the root domain it can transfer all the subdomain even if it does not own it
             let naming_contract = self._naming_contract.read();
-            let address = INamingDispatcher {
-                contract_address: naming_contract
-            }.domain_to_address(domain.span());
+            let address = INamingDispatcher { contract_address: naming_contract }
+                .domain_to_address(domain);
             assert(address.is_zero(), 'This name is taken');
 
-            INamingDispatcher {
-                contract_address: naming_contract
-            }.set_domain_to_address(domain.span(), caller);
-            INamingDispatcher {
-                contract_address: naming_contract
-            }.transfer_domain(domain.span(), receiver_token_id);
+            INamingDispatcher { contract_address: naming_contract }
+                .transfer_domain(domain, receiver_token_id);
 
             // blacklist the address for this address
             self._blacklisted_addresses.write(caller, true);
@@ -106,21 +95,9 @@ mod SimpleSubdomainDistribution {
 
         fn upgrade(ref self: ContractState, impl_hash: ClassHash) {
             self._check_admin();
-            let mut unsafe_state = Upgradeable::unsafe_new_contract_state();
-            Upgradeable::InternalImpl::_upgrade(ref unsafe_state, impl_hash);
-        }
-
-        fn upgrade_and_call(
-            ref self: ContractState,
-            impl_hash: ClassHash,
-            selector: felt252,
-            calldata: Array<felt252>
-        ) {
-            self._check_admin();
-            let mut unsafe_state = Upgradeable::unsafe_new_contract_state();
-            Upgradeable::InternalImpl::_upgrade_and_call(
-                ref unsafe_state, impl_hash, selector, calldata.span()
-            );
+            // todo: use components
+            assert(!impl_hash.is_zero(), 'Class hash cannot be zero');
+            starknet::replace_class_syscall(impl_hash).unwrap();
         }
 
         //
@@ -152,10 +129,6 @@ mod SimpleSubdomainDistribution {
             self: @ContractState
         ) -> (ContractAddress, ContractAddress, ContractAddress) {
             (get_contract_address(), self._starknetid_contract.read(), self._naming_contract.read())
-        }
-
-        fn _calculate_length(self: @ContractState, arr: @Array<felt252>) -> usize {
-            arr.len()
         }
     }
 }

@@ -1,10 +1,10 @@
 #[starknet::interface]
-trait IStarknetId<TContractState> {
+trait IIdentity<TContractState> {
     fn transferFrom(
         ref self: TContractState,
         _from: starknet::ContractAddress,
         to: starknet::ContractAddress,
-        token_id: u256,
+        token_id: u128,
     );
 }
 

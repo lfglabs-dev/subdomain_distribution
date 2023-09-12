@@ -1,3 +1,2 @@
-mod starknetid;
-mod naming;
+mod identity;
 mod erc20;
