@@ -1,191 +1,134 @@
-%lang starknet
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from cairo_contracts.src.openzeppelin.upgrades.library import Proxy
-from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
-from src.interface.naming import Naming
-from src.interface.starknetid import StarknetId
-from starkware.cairo.common.uint256 import Uint256
-from starkware.cairo.common.signature import verify_ecdsa_signature
-from starkware.cairo.common.bool import TRUE, FALSE
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.math_cmp import is_not_zero
+#[starknet::contract]
+mod SimpleSubdomainDistribution {
+    use starknet::ContractAddress;
+    use starknet::{get_caller_address, get_contract_address};
+    use array::SpanTrait;
+    use zeroable::Zeroable;
+    use starknet::class_hash::ClassHash;
 
-// Storage 
-@storage_var
-func _naming_contract() -> (address: felt) {
-}
+    use subdomain_distribution::interface::simple::ISimpleSubdomainDistribution;
+    use naming::interface::naming::{INaming, INamingDispatcher, INamingDispatcherTrait};
+    use subdomain_distribution::interface::identity::{
+        IIdentity, IIdentityDispatcher, IIdentityDispatcherTrait
+    };
 
-@storage_var
-func _starknetid_contract() -> (address: felt) {
-}
-
-@storage_var
-func _admin_address() -> (address: felt) {
-}
-
-@storage_var
-func _blacklisted_addresses(address: felt) -> (boolean: felt) {
-}
-
-@storage_var
-func _is_registration_open() -> (boolean: felt) {
-}
-
-// Proxy 
-
-@external
-func initializer{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    proxy_admin_address: felt, starknetid_contract: felt, naming_contract: felt
-) {
-    // Can only be called if there is no admin
-    let (current_admin) = _admin_address.read();
-    assert current_admin = 0;
-
-    _admin_address.write(proxy_admin_address);
-    _naming_contract.write(naming_contract);
-    _starknetid_contract.write(starknetid_contract);
-
-    return ();
-}
-
-@external
-func upgrade{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    new_implementation: felt
-) {
-    _check_admin();
-    Proxy._set_implementation_hash(new_implementation);
-
-    return ();
-}
-
-// External functions
-@external
-func claim_domain_back{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    domain_len: felt, domain: felt*
-) {
-    alloc_locals;
-
-    // Check that the caller is the admin
-    with_attr error_message("You are not the admin") {
-        _check_admin();
+    #[storage]
+    struct Storage {
+        _naming_contract: ContractAddress,
+        _starknetid_contract: ContractAddress,
+        _admin_address: ContractAddress,
+        _blacklisted_addresses: LegacyMap<ContractAddress, bool>,
+        _is_registration_open: bool,
     }
 
-    // Get contracts addresses
-    let (caller) = get_caller_address();
-    let (current_contract, starknetid_contract, naming_contract) = _get_contracts_addresses();
-
-    // Transfer back the starknet identity of the domain to the caller address
-    let (token_id) = Naming.domain_to_token_id(naming_contract, domain_len, domain);
-    let token_id_uint = Uint256(token_id, 0);
-    StarknetId.transferFrom(starknetid_contract, current_contract, caller, token_id_uint);
-    
-    return ();
-}
-
-@external
-func register{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
-    domain_len: felt, domain: felt*, receiver_token_id: felt
-) {
-    alloc_locals;
-
-    // Check if the registration is open
-    let (is_registration_open) = _is_registration_open.read();
-    with_attr error_message("The registration is closed") {
-        assert is_registration_open = 1;
+    #[constructor]
+    fn constructor(
+        ref self: ContractState,
+        proxy_admin_address: ContractAddress,
+        starknetid_contract: ContractAddress,
+        naming_contract: ContractAddress
+    ) {
+        self._initializer(proxy_admin_address, starknetid_contract, naming_contract);
     }
 
-    // Check if the domain to send is a subdomain of the root domain
-    with_attr error_message("You have to transfer a subdomain of the root domain, not the root domain itself.") {
-        assert domain_len = 2;
+    #[external(v0)]
+    impl SimpleImpl of ISimpleSubdomainDistribution<ContractState> {
+        fn claim_domain_back(ref self: ContractState, domain: Span<felt252>,) {
+            // Check that the caller is the admin
+            self._check_admin();
+
+            // Get contracts addresses
+            let caller = get_caller_address();
+            let (current_contract, starknetid_contract, naming_contract) = self
+                ._get_contracts_addresses();
+
+            // Transfer back the starknet identity of the domain to the caller address
+            let token_id = INamingDispatcher { contract_address: naming_contract }
+                .domain_to_id(domain);
+
+            IIdentityDispatcher { contract_address: starknetid_contract }
+                .transferFrom(current_contract, caller, token_id);
+        }
+
+        fn register(ref self: ContractState, domain: Span<felt252>, receiver_token_id: u128) {
+            // Check if the registration is open
+            assert(self._is_registration_open.read(), 'Registration is closed');
+
+            // Check if the domain to send is a subdomain of the root domain
+            assert(domain.len() == 2, 'Cannot transfer root domain');
+
+            // Verifiy that the caller address has not minted yet
+            let caller = get_caller_address();
+            assert(!self._blacklisted_addresses.read(caller), 'Caller already minted');
+
+            // Check if the name already has an address, as this contract will be the owner of the root domain it can transfer all the subdomain even if it does not own it
+            let naming_contract = self._naming_contract.read();
+            let address = INamingDispatcher { contract_address: naming_contract }
+                .domain_to_address(domain);
+            assert(address.is_zero(), 'This name is taken');
+
+            INamingDispatcher { contract_address: naming_contract }
+                .transfer_domain(domain, receiver_token_id);
+
+            // blacklist the address for this address
+            self._blacklisted_addresses.write(caller, true);
+        }
+
+        //
+        // Admin functions
+        //
+
+        fn open_registration(ref self: ContractState) {
+            self._check_admin();
+            self._is_registration_open.write(true);
+        }
+
+        fn close_registration(ref self: ContractState) {
+            self._check_admin();
+            self._is_registration_open.write(false);
+        }
+
+        fn change_admin(ref self: ContractState, address: ContractAddress) {
+            self._check_admin();
+            self._admin_address.write(address);
+        }
+
+        fn upgrade(ref self: ContractState, impl_hash: ClassHash) {
+            self._check_admin();
+            // todo: use components
+            assert(!impl_hash.is_zero(), 'Class hash cannot be zero');
+            starknet::replace_class_syscall(impl_hash).unwrap();
+        }
+
+        //
+        // View functions
+        //
+
+        fn is_registration_open(self: @ContractState) -> bool {
+            self._is_registration_open.read()
+        }
     }
 
-    // Verifiy that the caller address has not minted yet
-    let (caller) = get_caller_address();
-    let (is_blacklisted) = _blacklisted_addresses.read(caller);
-    with_attr error_message("This address has already minted") {
-        assert is_blacklisted = FALSE;
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn _initializer(
+            ref self: ContractState,
+            proxy_admin_address: ContractAddress,
+            starknetid_contract: ContractAddress,
+            naming_contract: ContractAddress,
+        ) {
+            self._admin_address.write(proxy_admin_address);
+            self._naming_contract.write(naming_contract);
+            self._starknetid_contract.write(starknetid_contract);
+        }
+        fn _check_admin(self: @ContractState) {
+            assert(get_caller_address() == self._admin_address.read(), 'Caller not admin');
+        }
+
+        fn _get_contracts_addresses(
+            self: @ContractState
+        ) -> (ContractAddress, ContractAddress, ContractAddress) {
+            (get_contract_address(), self._starknetid_contract.read(), self._naming_contract.read())
+        }
     }
-
-    // Check if the name already has an address, as this contract will be the owner of the root domain it can transfer all the subdomain even if it does not own it
-    with_attr error_message("This name is taken") {
-        let (naming_contract) = _naming_contract.read();
-        let (address) = Naming.domain_to_address(naming_contract, domain_len, domain);
-        let is_name_taken = is_not_zero(address);
-        assert is_name_taken = FALSE;
-    }
-
-    Naming.set_domain_to_address(naming_contract, domain_len, domain, caller);
-    Naming.transfer_domain(naming_contract, domain_len, domain, receiver_token_id);
-    
-    // blacklist the address for this tokenId
-    _blacklisted_addresses.write(caller, TRUE);
-
-    return ();
 }
-
-
-//
-// Admin functions
-//
-
-@external
-func open_registration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> () {
-    _check_admin();
-    _is_registration_open.write(1);
-
-    return ();
-}
-
-@external
-func close_registration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> () {
-    _check_admin();
-    _is_registration_open.write(0);
-
-    return ();
-}
-
-@external
-func change_admin{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(address: felt) -> () {
-    _check_admin();
-    _admin_address.write(address);
-
-    return ();
-}
-
-//
-// View functions
-//
-
-@view
-func is_registration_open{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (is_registration_open: felt) {
-    let (is_registration_open) = _is_registration_open.read();
-
-    return (is_registration_open,);
-}
-
-//
-// Utils
-//
-
-func _check_admin{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> () {
-    let (caller) = get_caller_address();
-    let (admin) = _admin_address.read();
-    with_attr error_message("You can not call this function cause you are not the admin.") {
-        assert caller = admin;
-    }
-
-    return ();
-}
-
-func _get_contracts_addresses{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() 
-    -> (current_contract: felt, starknetid_contract: felt, naming_contract: felt) {
-
-    let (current_contract) = get_contract_address();
-    let (starknetid_contract) = _starknetid_contract.read();
-    let (naming_contract) = _naming_contract.read();
-
-    return (current_contract, starknetid_contract, naming_contract);
-}
-
-
-

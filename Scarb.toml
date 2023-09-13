@@ -1,0 +1,18 @@
+[package]
+name = "subdomain_distribution"
+version = "0.1.0"
+
+[dependencies]
+starknet = "2.2.0"
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", branch = "cairo-2" }
+naming = { git = "https://github.com/starknet-id/naming.git", branch = "master" }
+
+[[target.starknet-contract]]
+# Enable Sierra codegen.
+sierra = true
+
+# Enable CASM codegen.
+casm = true
+
+# Emit Python-powered hints in order to run compiled CASM class with legacy Cairo VM.
+casm-add-pythonic-hints = true
