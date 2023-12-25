@@ -7,9 +7,10 @@ mod SimpleSubdomainDistribution {
     use starknet::class_hash::ClassHash;
 
     use subdomain_distribution::interface::simple::ISimpleSubdomainDistribution;
-    use naming::interface::naming::{INaming, INamingDispatcher, INamingDispatcherTrait};
-    use subdomain_distribution::interface::identity::{
-        IIdentity, IIdentityDispatcher, IIdentityDispatcherTrait
+
+    use subdomain_distribution::interface::{
+        identity::{IIdentity, IIdentityDispatcher, IIdentityDispatcherTrait},
+        naming::{INaming, INamingDispatcher, INamingDispatcherTrait}
     };
 
     #[storage]
